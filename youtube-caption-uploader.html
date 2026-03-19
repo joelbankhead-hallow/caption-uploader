@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caption Uploader — Hallow</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #17171a;
+    --surface2: #1e1e22;
+    --border: #2a2a30;
+    --accent: #7c6dfa;
+    --accent2: #fa6d8a;
+    --text: #e8e8f0;
+    --text-muted: #7a7a8a;
+    --green: #4dfa9a;
+    --red: #fa4d6d;
+    --yellow: #fac84d;
+    --radius: 10px;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    min-height: 100vh;
+    padding: 40px 24px;
+  }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.4;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 780px; margin: 0 auto; }
+
+  header {
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+  }
+
+  header h1 {
+    font-size: 22px; font-weight: 600; letter-spacing: -0.4px;
+  }
+
+  header .tag {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    background: rgba(124,109,250,0.12); border: 1px solid rgba(124,109,250,0.25);
+    padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;
+  }
+
+  /* Steps */
+  .steps { display: flex; flex-direction: column; gap: 24px; }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .step.active { border-color: var(--accent); }
+  .step.done { border-color: var(--green); }
+  .step.done .step-num { background: var(--green); color: #000; }
+
+  .step-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 20px;
+  }
+
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    flex-shrink: 0; transition: all 0.3s;
+  }
+
+  .step-title { font-weight: 500; font-size: 14px; }
+  .step-desc { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .step-body { padding: 0 20px 20px; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 18px; border-radius: 7px; border: none;
+    font-family: var(--font); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s; text-decoration: none;
+  }
+
+  .btn-primary {
+    background: var(--accent); color: #fff;
+  }
+  .btn-primary:hover { background: #9285fb; }
+
+  .btn-outline {
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-danger {
+    background: rgba(250,77,109,0.15); color: var(--red);
+    border: 1px solid rgba(250,77,109,0.25);
+  }
+  .btn-danger:hover { background: rgba(250,77,109,0.25); }
+
+  .btn-success {
+    background: var(--green); color: #000;
+  }
+  .btn-success:hover { background: #3de589; }
+
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* OAuth section */
+  .oauth-area { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px; font-size: 12px;
+    font-family: var(--mono);
+  }
+  .status-pill.connected { background: rgba(77,250,154,0.12); color: var(--green); border: 1px solid rgba(77,250,154,0.25); }
+  .status-pill.disconnected { background: rgba(250,200,77,0.10); color: var(--yellow); border: 1px solid rgba(250,200,77,0.20); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* Config row */
+  .config-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+  .field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
+  .field label { font-size: 11px; color: var(--text-muted); font-family: var(--mono); letter-spacing: 0.5px; text-transform: uppercase; }
+  .field input, .field select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 8px 12px; border-radius: 7px; outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field input::placeholder { color: var(--text-muted); }
+
+  /* Drop zone */
+  .dropzone {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 40px 24px; text-align: center; cursor: pointer;
+    transition: all 0.2s; position: relative;
+  }
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--accent); background: rgba(124,109,250,0.05);
+  }
+  .dropzone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .dropzone-icon { font-size: 32px; margin-bottom: 12px; }
+  .dropzone p { color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+  .dropzone strong { color: var(--text); }
+
+  /* File list */
+  .file-table {
+    width: 100%; border-collapse: collapse; margin-top: 16px;
+    font-size: 12px; font-family: var(--mono);
+  }
+  .file-table th {
+    text-align: left; color: var(--text-muted); font-weight: 400;
+    padding: 6px 10px; border-bottom: 1px solid var(--border);
+    font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .file-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .file-table tr:last-child td { border-bottom: none; }
+  .file-table tr:hover td { background: var(--surface2); }
+
+  .lang-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; letter-spacing: 0.5px;
+    background: rgba(124,109,250,0.15); color: var(--accent);
+    border: 1px solid rgba(124,109,250,0.25);
+  }
+
+  .match-good { color: var(--green); }
+  .match-warn { color: var(--yellow); }
+  .match-bad { color: var(--red); }
+
+  /* Progress */
+  .progress-bar-wrap {
+    height: 4px; background: var(--surface2); border-radius: 2px;
+    margin: 16px 0; overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px; transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  /* Result log */
+  .log {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-top: 16px;
+    max-height: 300px; overflow-y: auto;
+    font-family: var(--mono); font-size: 12px; line-height: 1.8;
+  }
+  .log-line { display: flex; gap: 10px; }
+  .log-line .ts { color: var(--text-muted); flex-shrink: 0; }
+  .log-ok { color: var(--green); }
+  .log-err { color: var(--red); }
+  .log-skip { color: var(--yellow); }
+  .log-info { color: var(--text-muted); }
+
+  /* Summary cards */
+  .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+  .summary-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px;
+    text-align: center;
+  }
+  .summary-card .num { font-size: 28px; font-weight: 600; font-family: var(--mono); }
+  .summary-card .lbl { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .summary-card.ok .num { color: var(--green); }
+  .summary-card.skip .num { color: var(--yellow); }
+  .summary-card.err .num { color: var(--red); }
+
+  /* Setup instructions */
+  .instructions {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 20px;
+    font-size: 12px; line-height: 1.8; color: var(--text-muted);
+  }
+  .instructions h4 { color: var(--text); font-size: 13px; margin-bottom: 10px; }
+  .instructions code {
+    background: var(--bg); padding: 1px 6px; border-radius: 4px;
+    color: var(--accent); font-family: var(--mono); font-size: 11px;
+  }
+  .instructions ol { padding-left: 18px; }
+  .instructions li { margin-bottom: 4px; }
+  .instructions a { color: var(--accent); text-decoration: none; }
+  .instructions a:hover { text-decoration: underline; }
+
+  .divider { width: 100%; height: 1px; background: var(--border); margin: 8px 0; }
+
+  .hidden { display: none !important; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .pulsing { animation: pulse 1.5s infinite; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="wrap">
+  <header>
+    <h1>Caption Uploader</h1>
+    <span class="tag">YouTube · SRT</span>
+  </header>
+
+  <div class="steps">
+
+    <!-- STEP 1: API Config -->
+    <div class="step active" id="step1">
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div>
+          <div class="step-title">YouTube API Credentials</div>
+          <div class="step-desc">Enter your OAuth Client ID and connect your channel</div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="instructions">
+          <h4>One-time setup</h4>
+          <ol>
+            <li>Go to <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a> → APIs & Services → Credentials</li>
+            <li>Create an <strong>OAuth 2.0 Client ID</strong> (Web application type)</li>
+            <li>Add <code id="origin-hint"></code> as an Authorised JavaScript Origin</li>
+            <li>Enable the <strong>YouTube Data API v3</strong> in your project</li>
+            <li>Paste your Client ID below and click Connect</li>
+          </ol>
+        </div>
+        <div class="config-row">
+          <div class="field" style="flex:2">
+            <label>OAuth Client ID</label>
+            <input type="text" id="client-id" placeholder="xxxx.apps.googleusercontent.com" />
+          </div>
+          <button class="btn btn-primary" onclick="connectYouTube()">Connect YouTube</button>
+        </div>
+        <div class="oauth-area">
+          <span class="status-pill disconnected" id="auth-status">
+            <span class="dot"></span>Not connected
+          </span>
+          <span id="channel-name" style="font-size:12px;color:var(--text-muted)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: Upload SRT Files -->
+    <div class="step" id="step2">
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div>
+          <div class="step-title">Select SRT Files</div>
+          <div class="step-desc">Files named like: <code style="font-family:var(--mono);font-size:11px;color:var(--accent)">Video Title_language.srt</code></div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept=".srt" multiple onchange="handleFiles(this.files)" />
+          <div class="dropzone-icon">📂</div>
+          <p><strong>Drop SRT files here</strong><br>or click to browse</p>
+        </div>
+        <div id="file-list-wrap" class="hidden">
+          <table class="file-table">
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>Parsed Title</th>
+                <th>Language</th>
+                <th>YouTube Match</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="file-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: Match & Upload -->
+    <div class="step" id="step3">
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div>
+          <div class="step-title">Review & Upload</div>
+          <div class="step-desc">Check matches, then upload all captions</div>
+        </div>
+      </div>
+      <div class="step-body">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+          <button class="btn btn-outline" onclick="fetchVideos()" id="btn-fetch">
+            🔍 Fetch My Videos
+          </button>
+          <button class="btn btn-success" onclick="startUpload()" id="btn-upload" disabled>
+            ⬆ Upload All Matched
+          </button>
+        </div>
+        <div class="progress-bar-wrap hidden" id="progress-wrap">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="log hidden" id="log"></div>
+        <div class="summary hidden" id="summary">
+          <div class="summary-card ok"><div class="num" id="sum-ok">0</div><div class="lbl">Uploaded</div></div>
+          <div class="summary-card skip"><div class="num" id="sum-skip">0</div><div class="lbl">Skipped</div></div>
+          <div class="summary-card err"><div class="num" id="sum-err">0</div><div class="lbl">Errors</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /steps -->
+</div>
+
+<script>
+// ---- State ----
+let accessToken = null;
+let parsedFiles = [];
+let videoCache = [];
+let clientId = '';
+
+// Language map: keyword → { code: BCP-47, name: display name }
+const LANG_MAP = {
+  english:              { code: 'en',    name: 'English' },
+  spanish:              { code: 'es',    name: 'Spanish' },
+  french:               { code: 'fr',    name: 'French' },
+  german:               { code: 'de',    name: 'German' },
+  italian:              { code: 'it',    name: 'Italian' },
+  portuguese:           { code: 'pt',    name: 'Portuguese' },
+  brazilian_portuguese: { code: 'pt-BR', name: 'Portuguese (Brazil)' },
+  portuguese_brazil:    { code: 'pt-BR', name: 'Portuguese (Brazil)' },
+  dutch:                { code: 'nl',    name: 'Dutch' },
+  russian:              { code: 'ru',    name: 'Russian' },
+  japanese:             { code: 'ja',    name: 'Japanese' },
+  korean:               { code: 'ko',    name: 'Korean' },
+  chinese:              { code: 'zh',    name: 'Chinese' },
+  arabic:               { code: 'ar',    name: 'Arabic' },
+  hindi:                { code: 'hi',    name: 'Hindi' },
+  polish:               { code: 'pl',    name: 'Polish' },
+  turkish:              { code: 'tr',    name: 'Turkish' },
+  swedish:              { code: 'sv',    name: 'Swedish' },
+  norwegian:            { code: 'no',    name: 'Norwegian' },
+  danish:               { code: 'da',    name: 'Danish' },
+  finnish:              { code: 'fi',    name: 'Finnish' },
+  hebrew:               { code: 'he',    name: 'Hebrew' },
+  czech:                { code: 'cs',    name: 'Czech' },
+  hungarian:            { code: 'hu',    name: 'Hungarian' },
+  romanian:             { code: 'ro',    name: 'Romanian' },
+  ukrainian:            { code: 'uk',    name: 'Ukrainian' },
+  thai:                 { code: 'th',    name: 'Thai' },
+  indonesian:           { code: 'id',    name: 'Indonesian' },
+  malay:                { code: 'ms',    name: 'Malay' },
+  vietnamese:           { code: 'vi',    name: 'Vietnamese' },
+  greek:                { code: 'el',    name: 'Greek' },
+  catalan:              { code: 'ca',    name: 'Catalan' },
+  en:  { code: 'en',    name: 'English' },
+  es:  { code: 'es',    name: 'Spanish' },
+  fr:  { code: 'fr',    name: 'French' },
+  de:  { code: 'de',    name: 'German' },
+  it:  { code: 'it',    name: 'Italian' },
+  pt:  { code: 'pt',    name: 'Portuguese' },
+  nl:  { code: 'nl',    name: 'Dutch' },
+  ru:  { code: 'ru',    name: 'Russian' },
+  ja:  { code: 'ja',    name: 'Japanese' },
+  ko:  { code: 'ko',    name: 'Korean' },
+  zh:  { code: 'zh',    name: 'Chinese' },
+  ar:  { code: 'ar',    name: 'Arabic' },
+  hi:  { code: 'hi',    name: 'Hindi' },
+  pl:  { code: 'pl',    name: 'Polish' },
+};
+
+// ---- Init ----
+document.getElementById('origin-hint').textContent = window.location.origin;
+
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+
+// ---- Auth ----
+function connectYouTube() {
+  clientId = document.getElementById('client-id').value.trim();
+  if (!clientId) { alert('Please enter your OAuth Client ID first.'); return; }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: window.location.origin + window.location.pathname,
+    response_type: 'token',
+    scope: 'https://www.googleapis.com/auth/youtube.upload',
+    include_granted_scopes: 'true',
+  });
+
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+}
+
+// Handle OAuth redirect token in URL hash
+(function handleRedirect() {
+  const hash = window.location.hash.substring(1);
+  if (!hash) return;
+  const params = new URLSearchParams(hash);
+  const token = params.get('access_token');
+  if (!token) return;
+  accessToken = token;
+  history.replaceState(null, '', window.location.pathname);
+  setConnected();
+  // Restore saved client ID
+  const saved = localStorage.getItem('yt_client_id');
+  if (saved) document.getElementById('client-id').value = saved;
+})();
+
+function setConnected() {
+  const pill = document.getElementById('auth-status');
+  pill.className = 'status-pill connected';
+  pill.innerHTML = '<span class="dot"></span>Connected';
+  document.getElementById('step1').classList.remove('active');
+  document.getElementById('step1').classList.add('done');
+  document.getElementById('step2').classList.add('active');
+
+  // Save client ID
+  localStorage.setItem('yt_client_id', document.getElementById('client-id').value.trim());
+
+  // Get channel name
+  fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
+    headers: { Authorization: `Bearer ${accessToken}` }
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.items && d.items[0]) {
+      document.getElementById('channel-name').textContent = `→ ${d.items[0].snippet.title}`;
+    }
+  });
+}
+
+// Restore saved client ID on load
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('yt_client_id');
+  if (saved) document.getElementById('client-id').value = saved;
+});
+
+// ---- File Parsing ----
+function parseFilename(filename) {
+  // Strip .srt extension
+  const base = filename.replace(/\.srt$/i, '');
+
+  // Try to match known multi-word languages first (those with underscores)
+  // by checking if the end of the filename matches a known compound key
+  const multiWordKeys = Object.keys(LANG_MAP).filter(k => k.includes('_'));
+  for (const key of multiWordKeys) {
+    if (base.toLowerCase().endsWith('_' + key)) {
+      const title = base.substring(0, base.length - key.length - 1).trim();
+      const langEntry = LANG_MAP[key];
+      return { title, lang: key, langCode: langEntry.code, langName: langEntry.name };
+    }
+  }
+
+  // Fall back to splitting on last underscore for single-word languages
+  const lastUnderscore = base.lastIndexOf('_');
+  if (lastUnderscore === -1) return { title: base, lang: null, langCode: null, langName: null };
+
+  const rawLang = base.substring(lastUnderscore + 1).trim().toLowerCase();
+  const title = base.substring(0, lastUnderscore).trim();
+  const langEntry = LANG_MAP[rawLang];
+  const langCode = langEntry ? langEntry.code : rawLang;
+  const langName = langEntry ? langEntry.name : (rawLang.charAt(0).toUpperCase() + rawLang.slice(1));
+
+  return { title, lang: rawLang, langCode, langName };
+}
+
+function handleFiles(files) {
+  if (!files || files.length === 0) return;
+
+  parsedFiles = [];
+  Array.from(files).forEach(file => {
+    if (!file.name.toLowerCase().endsWith('.srt')) return;
+    const parsed = parseFilename(file.name);
+    parsedFiles.push({ file, ...parsed, videoId: null, matchTitle: null, matchScore: 0 });
+  });
+
+  renderFileTable();
+
+  document.getElementById('step2').classList.add('done');
+  document.getElementById('step3').classList.add('active');
+}
+
+function renderFileTable() {
+  const tbody = document.getElementById('file-table-body');
+  tbody.innerHTML = '';
+
+  parsedFiles.forEach((f, i) => {
+    const scoreClass = f.videoId
+      ? (f.matchScore > 0.8 ? 'match-good' : f.matchScore > 0.5 ? 'match-warn' : 'match-bad')
+      : 'match-bad';
+
+    const matchText = f.videoId
+      ? `<span class="${scoreClass}">✓ ${f.matchTitle || ''} <small>(${Math.round(f.matchScore * 100)}%)</small></span>`
+      : `<span class="match-bad">— no match</span>`;
+
+    const langDisplay = f.langCode
+      ? `<span class="lang-badge">${f.langCode}</span>`
+      : `<span style="color:var(--red);font-size:11px">unknown</span>`;
+
+    tbody.innerHTML += `
+      <tr>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.file.name}">${f.file.name}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.title}">${f.title}</td>
+        <td>${langDisplay}</td>
+        <td>${matchText}</td>
+        <td>
+          <button class="btn btn-outline" style="padding:4px 10px;font-size:11px" onclick="removeFile(${i})">✕</button>
+        </td>
+      </tr>`;
+  });
+
+  document.getElementById('file-list-wrap').classList.remove('hidden');
+  updateUploadButton();
+}
+
+function removeFile(i) {
+  parsedFiles.splice(i, 1);
+  renderFileTable();
+}
+
+// ---- Video Fetching & Matching ----
+async function fetchVideos() {
+  if (!accessToken) { alert('Please connect YouTube first.'); return; }
+  const btn = document.getElementById('btn-fetch');
+  btn.textContent = '⏳ Fetching…';
+  btn.disabled = true;
+  document.getElementById('log').classList.remove('hidden');
+
+  videoCache = [];
+
+  try {
+    // Step 1: get the channel's uploads playlist ID
+    const chanRes = await fetch(
+      'https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    const chanData = await chanRes.json();
+    if (chanData.error) throw new Error(chanData.error.message);
+
+    const uploadsId = chanData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+    if (!uploadsId) throw new Error('Could not find uploads playlist for this channel.');
+
+    logLine('info', `Found uploads playlist. Fetching videos…`);
+
+    // Step 2: page through the uploads playlist
+    let pageToken = '';
+    do {
+      const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${uploadsId}&maxResults=50${pageToken ? '&pageToken=' + pageToken : ''}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      (data.items || []).forEach(item => {
+        const videoId = item.snippet?.resourceId?.videoId;
+        const title = item.snippet?.title;
+        if (videoId && title && title !== 'Deleted video' && title !== 'Private video') {
+          videoCache.push({ id: videoId, title });
+        }
+      });
+
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    // Step 3: match files to videos
+    parsedFiles.forEach(f => {
+      const best = bestMatch(f.title, videoCache);
+      f.videoId = best ? best.id : null;
+      f.matchTitle = best ? best.title : null;
+      f.matchScore = best ? best.score : 0;
+    });
+
+    renderFileTable();
+    logLine('info', `Fetched ${videoCache.length} videos. Matched ${parsedFiles.filter(f => f.videoId).length} of ${parsedFiles.length} SRT files.`);
+    // Show first 5 video titles for debugging
+    videoCache.slice(0, 5).forEach(v => logLine('info', `↳ "${v.title}"`));
+
+  } catch (e) {
+    logLine('err', `Failed to fetch videos: ${e.message}`);
+  }
+
+  btn.textContent = '🔍 Refresh Videos';
+  btn.disabled = false;
+}
+
+function bestMatch(query, videos) {
+  let best = null;
+  let bestScore = 0;
+  const q = normalise(query);
+
+  videos.forEach(v => {
+    const score = similarity(q, normalise(v.title));
+    if (score > bestScore) { bestScore = score; best = { ...v, score }; }
+  });
+
+  return bestScore > 0.25 ? best : null;
+}
+
+function normalise(s) {
+  return s.toLowerCase()
+    .replace(/[_\-|#&]/g, ' ')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ').trim();
+}
+
+// Dice coefficient similarity
+function similarity(a, b) {
+  if (a === b) return 1;
+  if (a.length < 2 || b.length < 2) return 0;
+  const bigrams = new Map();
+  for (let i = 0; i < a.length - 1; i++) {
+    const bg = a.substring(i, i + 2);
+    bigrams.set(bg, (bigrams.get(bg) || 0) + 1);
+  }
+  let intersect = 0;
+  for (let i = 0; i < b.length - 1; i++) {
+    const bg = b.substring(i, i + 2);
+    if (bigrams.has(bg) && bigrams.get(bg) > 0) {
+      intersect++;
+      bigrams.set(bg, bigrams.get(bg) - 1);
+    }
+  }
+  return (2 * intersect) / (a.length + b.length - 2);
+}
+
+// ---- Upload ----
+function updateUploadButton() {
+  const matched = parsedFiles.filter(f => f.videoId && f.langCode).length;
+  const btn = document.getElementById('btn-upload');
+  btn.disabled = matched === 0;
+  btn.textContent = matched > 0 ? `⬆ Upload ${matched} Caption${matched > 1 ? 's' : ''}` : '⬆ Upload All Matched';
+}
+
+async function startUpload() {
+  const toUpload = parsedFiles.filter(f => f.videoId && f.langCode);
+  const toSkip = parsedFiles.filter(f => !f.videoId || !f.langCode);
+
+  if (toUpload.length === 0) { alert('No matched files to upload.'); return; }
+
+  document.getElementById('btn-upload').disabled = true;
+  document.getElementById('btn-fetch').disabled = true;
+  document.getElementById('progress-wrap').classList.remove('hidden');
+  document.getElementById('log').classList.remove('hidden');
+  document.getElementById('summary').classList.remove('hidden');
+
+  let ok = 0, skip = toSkip.length, err = 0;
+
+  // Log skips
+  toSkip.forEach(f => {
+    logLine('skip', `SKIP  ${f.file.name} — ${!f.videoId ? 'no video match' : 'unknown language'}`);
+  });
+
+  for (let i = 0; i < toUpload.length; i++) {
+    const f = toUpload[i];
+    setProgress(((i) / toUpload.length) * 100);
+
+    try {
+      const srtText = await readFile(f.file);
+      await uploadCaption(f.videoId, f.langCode, f.langName, srtText);
+      logLine('ok', `OK    ${f.file.name} → "${f.matchTitle}" [${f.langCode}]`);
+      ok++;
+    } catch (e) {
+      logLine('err', `ERR   ${f.file.name} — ${e.message}`);
+      err++;
+    }
+
+    setProgress(((i + 1) / toUpload.length) * 100);
+    document.getElementById('sum-ok').textContent = ok;
+    document.getElementById('sum-err').textContent = err;
+    document.getElementById('sum-skip').textContent = skip;
+  }
+
+  setProgress(100);
+  logLine('info', `Done. ${ok} uploaded, ${skip} skipped, ${err} errors.`);
+  document.getElementById('btn-upload').disabled = false;
+  document.getElementById('btn-fetch').disabled = false;
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
+}
+
+async function uploadCaption(videoId, langCode, name, srtContent) {
+  const metadata = { snippet: { videoId, language: langCode, name, isDraft: false } };
+  const boundary = 'caption_boundary_xyz';
+  const body = [
+    `--${boundary}`,
+    'Content-Type: application/json; charset=UTF-8',
+    '',
+    JSON.stringify(metadata),
+    `--${boundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    '',
+    srtContent,
+    `--${boundary}--`
+  ].join('\r\n');
+
+  const res = await fetch(
+    `https://www.googleapis.com/upload/youtube/v3/captions?uploadType=multipart&part=snippet`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error?.message || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
+// ---- Helpers ----
+function setProgress(pct) {
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function logLine(type, msg) {
+  const log = document.getElementById('log');
+  const ts = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  div.innerHTML = `<span class="ts">${ts}</span><span class="log-${type}">${msg}</span>`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+</script>
+</body>
+</html>
