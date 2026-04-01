@@ -441,11 +441,13 @@ function connectYouTube() {
   clientId = document.getElementById('client-id').value.trim();
   if (!clientId) { alert('Please enter your OAuth Client ID first.'); return; }
 
+  localStorage.setItem('yt_client_id', clientId);
+
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: window.location.origin + window.location.pathname,
     response_type: 'token',
-    scope: 'https://www.googleapis.com/auth/youtube.upload',
+    scope: 'https://www.googleapis.com/auth/youtube.force-ssl',
     include_granted_scopes: 'true',
   });
 
@@ -462,9 +464,6 @@ function connectYouTube() {
   accessToken = token;
   history.replaceState(null, '', window.location.pathname);
   setConnected();
-  // Restore saved client ID
-  const saved = localStorage.getItem('yt_client_id');
-  if (saved) document.getElementById('client-id').value = saved;
 })();
 
 function setConnected() {
@@ -475,8 +474,9 @@ function setConnected() {
   document.getElementById('step1').classList.add('done');
   document.getElementById('step2').classList.add('active');
 
-  // Save client ID
-  localStorage.setItem('yt_client_id', document.getElementById('client-id').value.trim());
+  // Restore client ID to input if it was saved (e.g. after OAuth redirect)
+  const savedId = localStorage.getItem('yt_client_id');
+  if (savedId) document.getElementById('client-id').value = savedId;
 
   // Get channel name
   fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
