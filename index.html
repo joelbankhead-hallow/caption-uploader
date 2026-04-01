@@ -716,7 +716,7 @@ async function startUpload() {
 
     try {
       const srtText = await readFile(f.file);
-      await uploadCaption(f.videoId, f.langCode, f.langName, srtText);
+      await uploadCaption(f.videoId, f.langCode, srtText);
       logLine('ok', `OK    ${f.file.name} → "${f.matchTitle}" [${f.langCode}]`);
       ok++;
     } catch (e) {
@@ -745,8 +745,8 @@ function readFile(file) {
   });
 }
 
-async function uploadCaption(videoId, langCode, name, srtContent) {
-  const metadata = { snippet: { videoId, language: langCode, name, isDraft: false } };
+async function uploadCaption(videoId, langCode, srtContent) {
+  const metadata = { snippet: { videoId, language: langCode, name: '', isDraft: false } };
   const boundary = 'caption_boundary_xyz';
   const body = [
     `--${boundary}`,
